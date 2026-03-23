@@ -18,13 +18,15 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
+    [AllowAnonymous]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
         var result = await _authService.RegisterAsync(request);
-        return StatusCode(201, result);
+        return StatusCode(StatusCodes.Status201Created, result);
     }
 
     [HttpPost("login")]
+    [AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var result = await _authService.LoginAsync(request);
@@ -32,33 +34,43 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("refresh")]
+    [AllowAnonymous]
     public async Task<IActionResult> Refresh([FromBody] RefreshRequest request)
     {
         var result = await _authService.RefreshAsync(request);
         return Ok(result);
     }
 
-    [Authorize]
     [HttpPost("logout")]
+    [Authorize]
     public async Task<IActionResult> Logout()
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var userIdRaw = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userIdRaw))
+        {
+            return Unauthorized();
+        }
 
-        var authHeader = Request.Headers.Authorization.ToString();
-        var accessToken = authHeader.Replace("Bearer ", "");
+        var accessToken = Request.Headers.Authorization.ToString();
+        if (accessToken.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            accessToken = accessToken["Bearer ".Length..].Trim();
+        }
 
-        await _authService.LogoutAsync(userId, accessToken);
+        await _authService.LogoutAsync(int.Parse(userIdRaw), accessToken);
         return NoContent();
     }
 
     [HttpPost("forgot-password")]
+    [AllowAnonymous]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
     {
         await _authService.ForgotPasswordAsync(request);
-        return Ok(new { message = "Mã khôi phục đã được gửi." });
+        return Ok(new { message = "Mã khôi phục đã được gửi đến email." });
     }
 
     [HttpPost("reset-password")]
+    [AllowAnonymous]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
         await _authService.ResetPasswordAsync(request);

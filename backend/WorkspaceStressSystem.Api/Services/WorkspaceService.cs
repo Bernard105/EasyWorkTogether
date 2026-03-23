@@ -11,10 +11,12 @@ namespace WorkspaceStressSystem.Api.Services;
 public class WorkspaceService : IWorkspaceService
 {
     private readonly AppDbContext _dbContext;
+    private readonly ILogger<WorkspaceService> _logger;
 
-    public WorkspaceService(AppDbContext dbContext)
+    public WorkspaceService(AppDbContext dbContext, ILogger<WorkspaceService> logger)
     {
         _dbContext = dbContext;
+        _logger = logger;
     }
 
     public async Task<List<WorkspaceResponse>> GetMyWorkspacesAsync(int userId)
@@ -71,6 +73,7 @@ public class WorkspaceService : IWorkspaceService
             await _dbContext.SaveChangesAsync();
 
             await transaction.CommitAsync();
+            _logger.LogInformation("WORKSPACE_CREATED workspaceId={WorkspaceId} ownerId={OwnerId}", workspace.Id, userId);
 
             return new WorkspaceResponse
             {
@@ -115,6 +118,7 @@ public class WorkspaceService : IWorkspaceService
         workspace.UpdatedAt = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync();
+        _logger.LogInformation("WORKSPACE_UPDATED workspaceId={WorkspaceId} actorUserId={ActorUserId}", workspaceId, userId);
 
         return new WorkspaceResponse
         {
@@ -142,6 +146,7 @@ public class WorkspaceService : IWorkspaceService
 
         _dbContext.Workspaces.Remove(workspace);
         await _dbContext.SaveChangesAsync();
+        _logger.LogWarning("WORKSPACE_DELETED workspaceId={WorkspaceId} actorUserId={ActorUserId}", workspaceId, userId);
     }
 
     public async Task<List<MemberResponse>> GetMembersAsync(int userId, int workspaceId)
@@ -192,6 +197,7 @@ public class WorkspaceService : IWorkspaceService
         }
 
         var normalizedRole = request.Role.Trim().ToLower();
+        var oldRole = target.Role;
         target.Role = normalizedRole switch
         {
             "admin" => WorkspaceRole.Admin,
@@ -200,6 +206,13 @@ public class WorkspaceService : IWorkspaceService
         };
 
         await _dbContext.SaveChangesAsync();
+        _logger.LogWarning(
+            "MEMBER_ROLE_CHANGED workspaceId={WorkspaceId} actorUserId={ActorUserId} targetUserId={TargetUserId} oldRole={OldRole} newRole={NewRole}",
+            workspaceId,
+            actorUserId,
+            targetUserId,
+            oldRole,
+            target.Role);
     }
 
     public async Task RemoveMemberAsync(int actorUserId, int workspaceId, int targetUserId)
@@ -227,5 +240,6 @@ public class WorkspaceService : IWorkspaceService
 
         _dbContext.WorkspaceMembers.Remove(target);
         await _dbContext.SaveChangesAsync();
+        _logger.LogWarning("MEMBER_REMOVED workspaceId={WorkspaceId} actorUserId={ActorUserId} targetUserId={TargetUserId}", workspaceId, actorUserId, targetUserId);
     }
 }

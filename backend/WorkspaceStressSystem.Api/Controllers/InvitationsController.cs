@@ -26,11 +26,27 @@ public class InvitationsController : ControllerBase
         return StatusCode(201, result);
     }
 
+    [HttpPost("workspaces/{workspaceId:int}/invitations/resend")]
+    public async Task<IActionResult> ResendInvitation(int workspaceId, [FromBody] CreateInvitationRequest request)
+    {
+        var actorUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var result = await _invitationService.ResendInvitationAsync(actorUserId, workspaceId, request);
+        return Ok(result);
+    }
+
     [HttpPost("invitations/accept")]
     public async Task<IActionResult> AcceptInvitation([FromBody] AcceptInvitationRequest request)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var result = await _invitationService.AcceptInvitationAsync(userId, request);
         return Ok(result);
+    }
+
+    [HttpPost("invitations/reject")]
+    public async Task<IActionResult> RejectInvitation([FromBody] RejectInvitationRequest request)
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        await _invitationService.RejectInvitationAsync(userId, request);
+        return Ok(new { message = "Đã từ chối lời mời." });
     }
 }

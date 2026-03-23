@@ -1,5 +1,6 @@
 using BCrypt.Net;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using WorkspaceStressSystem.Api.Data;
 using WorkspaceStressSystem.Api.DTOs.Auth;
 using WorkspaceStressSystem.Api.DTOs.Users;
@@ -13,15 +14,27 @@ namespace WorkspaceStressSystem.Api.Services;
 
 public class AuthService : IAuthService
 {
+    private const int CaptchaThreshold = 3;
+    private const int FailedLoginCacheMinutes = 30;
+
     private readonly AppDbContext _dbContext;
     private readonly JwtHelper _jwtHelper;
     private readonly IEmailService _emailService;
+    private readonly IMemoryCache _memoryCache;
+    private readonly ILogger<AuthService> _logger;
 
-    public AuthService(AppDbContext dbContext, JwtHelper jwtHelper, IEmailService emailService)
+    public AuthService(
+        AppDbContext dbContext,
+        JwtHelper jwtHelper,
+        IEmailService emailService,
+        IMemoryCache memoryCache,
+        ILogger<AuthService> logger)
     {
         _dbContext = dbContext;
         _jwtHelper = jwtHelper;
         _emailService = emailService;
+        _memoryCache = memoryCache;
+        _logger = logger;
     }
 
     public async Task<UserProfileResponse> RegisterAsync(RegisterRequest request)
@@ -59,6 +72,8 @@ public class AuthService : IAuthService
         _dbContext.Users.Add(user);
         await _dbContext.SaveChangesAsync();
 
+        _logger.LogInformation("REGISTER_SUCCESS userId={UserId} email={Email}", user.Id, user.Email);
+
         return new UserProfileResponse
         {
             Id = user.Id,
@@ -79,17 +94,42 @@ public class AuthService : IAuthService
 
         var email = request.Email.Trim().ToLowerInvariant();
 
+        ValidateCaptchaIfRequired(email, request.CaptchaToken);
+
         var user = await _dbContext.Users.FirstOrDefaultAsync(x => x.Email == email);
         if (user == null)
         {
+            var failedCount = IncreaseFailedLoginCount(email);
+            _logger.LogWarning("LOGIN_FAILED_UNKNOWN_EMAIL email={Email} failedCount={FailedCount}", email, failedCount);
+
+            if (failedCount >= CaptchaThreshold)
+            {
+                throw new AppException(403, "CAPTCHA_REQUIRED", "Bạn đã nhập sai quá 3 lần. Vui lòng cung cấp captcha hợp lệ.");
+            }
+
             throw new AppException(401, "UNAUTHORIZED", "Tài khoản không hợp lệ.");
         }
 
         var validPassword = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
         if (!validPassword)
         {
+            var failedCount = IncreaseFailedLoginCount(email);
+            _logger.LogWarning(
+                "LOGIN_FAILED_BAD_PASSWORD userId={UserId} email={Email} failedCount={FailedCount}",
+                user.Id,
+                email,
+                failedCount);
+
+            if (failedCount >= CaptchaThreshold)
+            {
+                throw new AppException(403, "CAPTCHA_REQUIRED", "Bạn đã nhập sai quá 3 lần. Vui lòng cung cấp captcha hợp lệ.");
+            }
+
             throw new AppException(401, "UNAUTHORIZED", "Mật khẩu sai.");
         }
+
+        ClearFailedLoginCount(email);
+        _logger.LogInformation("LOGIN_SUCCESS userId={UserId} email={Email}", user.Id, email);
 
         return await CreateSessionAsync(user);
     }
@@ -108,6 +148,7 @@ public class AuthService : IAuthService
 
         if (oldSession == null || oldSession.ExpiresAt <= DateTime.UtcNow)
         {
+            _logger.LogWarning("REFRESH_FAILED invalidOrExpiredToken");
             throw new AppException(401, "UNAUTHORIZED", "Refresh token hết hạn hoặc không hợp lệ.");
         }
 
@@ -135,6 +176,8 @@ public class AuthService : IAuthService
 
         _dbContext.UserSessions.Add(newSession);
         await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("REFRESH_ROTATED userId={UserId} oldSessionId={OldSessionId}", user.Id, oldSession.Id);
 
         return new AuthResponse
         {
@@ -165,6 +208,8 @@ public class AuthService : IAuthService
 
         session.Status = SessionStatus.Revoked;
         await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("LOGOUT_SUCCESS userId={UserId} sessionId={SessionId}", userId, session.Id);
     }
 
     public async Task ForgotPasswordAsync(ForgotPasswordRequest request)
@@ -207,6 +252,7 @@ public class AuthService : IAuthService
         await _dbContext.SaveChangesAsync();
 
         await _emailService.SendPasswordResetEmailAsync(user.Email, code, expiresAt);
+        _logger.LogInformation("PASSWORD_RESET_CODE_SENT userId={UserId} email={Email}", user.Id, user.Email);
     }
 
     public async Task ResetPasswordAsync(ResetPasswordRequest request)
@@ -256,6 +302,7 @@ public class AuthService : IAuthService
         }
 
         await _dbContext.SaveChangesAsync();
+        _logger.LogInformation("PASSWORD_RESET_SUCCESS userId={UserId} email={Email}", user.Id, user.Email);
     }
 
     private async Task<AuthResponse> CreateSessionAsync(User user)
@@ -284,5 +331,55 @@ public class AuthService : IAuthService
             ExpiresIn = _jwtHelper.AccessTokenMinutes * 60,
             TokenType = "Bearer"
         };
+    }
+
+    private void ValidateCaptchaIfRequired(string email, string? captchaToken)
+    {
+        var failedCount = GetFailedLoginCount(email);
+        if (failedCount < CaptchaThreshold)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(captchaToken))
+        {
+            throw new AppException(403, "CAPTCHA_REQUIRED", "Bạn đã nhập sai quá 3 lần. Vui lòng cung cấp captcha hợp lệ.");
+        }
+
+        if (!string.Equals(captchaToken.Trim(), "passed", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new AppException(403, "CAPTCHA_REQUIRED", "Captcha không hợp lệ.");
+        }
+    }
+
+    private int IncreaseFailedLoginCount(string email)
+    {
+        var cacheKey = GetFailedLoginCacheKey(email);
+        var current = GetFailedLoginCount(email);
+        var next = current + 1;
+
+        _memoryCache.Set(
+            cacheKey,
+            next,
+            TimeSpan.FromMinutes(FailedLoginCacheMinutes));
+
+        return next;
+    }
+
+    private int GetFailedLoginCount(string email)
+    {
+        var cacheKey = GetFailedLoginCacheKey(email);
+        return _memoryCache.TryGetValue<int>(cacheKey, out var count) ? count : 0;
+    }
+
+    private void ClearFailedLoginCount(string email)
+    {
+        var cacheKey = GetFailedLoginCacheKey(email);
+        _memoryCache.Remove(cacheKey);
+    }
+
+    private static string GetFailedLoginCacheKey(string email)
+    {
+        return $"failed-login:{email}";
     }
 }
