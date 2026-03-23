@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("WorkspaceStressSystem.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+23af62c30419d12731a08aeba4a9a0ddf9a61a06")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ead4acbf324cdfd688cc739bf42a16e6e26d0161")]
 [assembly: System.Reflection.AssemblyProductAttribute("WorkspaceStressSystem.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("WorkspaceStressSystem.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
