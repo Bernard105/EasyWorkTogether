@@ -1,0 +1,23 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam rectangle {
+  RoundCorner 10
+}
+
+actor User
+actor "Invited Member" as InvitedMember
+actor "Email Service" as EmailService
+
+rectangle "Hệ thống quản lý người dùng\nvà workspace" as System
+
+User --> System : Thông tin đăng ký\nThông tin đăng nhập\nYêu cầu quản lý hồ sơ\nYêu cầu tạo/cập nhật workspace\nYêu cầu mời thành viên
+System --> User : Kết quả đăng ký/đăng nhập\nToken JWT\nThông tin hồ sơ\nThông tin workspace\nKết quả xử lý
+
+InvitedMember --> System : Mã lời mời / yêu cầu chấp nhận lời mời
+System --> InvitedMember : Kết quả tham gia workspace
+
+System --> EmailService : Email mời\nEmail khôi phục mật khẩu
+EmailService --> User : Email khôi phục
+EmailService --> InvitedMember : Email mời tham gia
+@enduml

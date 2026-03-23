@@ -1,0 +1,44 @@
+@startuml
+actor Client
+participant "Frontend (ReactJS)" as FE
+participant "API Server\n(ASP.NET Core Web API)" as API
+participant "Auth Middleware" as MW
+participant "AuthService / TokenService" as Auth
+database "user_sessions" as DB
+
+Client -> FE: Gửi request cần xác thực
+FE -> API: Authorization: Bearer <access_token>
+API -> MW: Kiểm tra access token
+
+alt Access token hợp lệ
+  MW --> API: Cho phép truy cập
+  API --> FE: 200 OK / dữ liệu
+  FE --> Client: Hiển thị kết quả
+
+else Access token hết hạn / không hợp lệ
+  MW --> API: Unauthorized
+  API --> FE: 401 Unauthorized
+  FE -> API: POST /api/refresh {refresh_token}
+  API -> Auth: Refresh(refresh_token)
+  Auth -> DB: Kiểm tra refresh_token_hash và trạng thái phiên
+
+  alt Refresh token hợp lệ
+    DB --> Auth: valid
+    Auth -> DB: Thu hồi token cũ
+    Auth -> DB: Lưu refresh token mới
+    Auth --> API: new access_token, new refresh_token
+    API --> FE: 200 OK
+    FE -> API: Gửi lại request ban đầu với access token mới
+    API -> MW: Kiểm tra access token mới
+    MW --> API: Hợp lệ
+    API --> FE: 200 OK / dữ liệu
+    FE --> Client: Hiển thị kết quả
+
+  else Refresh token không hợp lệ / hết hạn
+    DB --> Auth: invalid
+    Auth --> API: 401 Unauthorized
+    API --> FE: 401 Unauthorized
+    FE --> Client: Yêu cầu đăng nhập lại
+  end
+end
+@enduml

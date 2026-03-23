@@ -1,0 +1,33 @@
+@startuml
+left to right direction
+skinparam shadowing false
+
+actor User
+actor "Email Service" as EmailService
+
+rectangle "1.1\nĐăng ký tài khoản" as P11
+rectangle "1.2\nXác thực đăng nhập" as P12
+rectangle "1.3\nQuản lý hồ sơ" as P13
+rectangle "1.4\nKhôi phục mật khẩu" as P14
+
+database "D1\nusers" as D1
+database "D2\nuser_sessions" as D2
+
+User --> P11 : email, password, name
+P11 --> User : kết quả đăng ký
+P11 --> D1 : tạo user mới
+
+User --> P12 : email, password /\nrefresh token /\nlogout request
+P12 --> User : access token,\nrefresh token,\ntrạng thái đăng xuất
+P12 --> D1 : kiểm tra tài khoản
+P12 --> D2 : tạo phiên /\nthu hồi phiên /\nrefresh token rotation
+
+User --> P13 : yêu cầu xem/cập nhật hồ sơ
+P13 --> User : thông tin hồ sơ cập nhật
+P13 --> D1 : đọc/ghi hồ sơ
+
+User --> P14 : yêu cầu quên mật khẩu /\nđặt lại mật khẩu
+P14 --> User : kết quả khôi phục
+P14 --> D1 : kiểm tra email /\ncập nhật password_hash
+P14 --> EmailService : gửi email khôi phục
+@enduml

@@ -1,0 +1,40 @@
+@startuml
+left to right direction
+skinparam shadowing false
+
+actor User
+actor "Invited Member" as InvitedMember
+actor "Email Service" as EmailService
+
+rectangle "1.0\nQuản lý người dùng" as P1
+rectangle "2.0\nQuản lý workspace" as P2
+rectangle "3.0\nXử lý cảnh báo\n(Phase 2)" as P3
+
+database "D1\nusers" as D1
+database "D2\nuser_sessions" as D2
+database "D3\nworkspaces" as D3
+database "D4\nworkspace_members" as D4
+database "D5\nworkspace_invitations" as D5
+
+User --> P1 : Đăng ký / đăng nhập /\nđăng xuất / hồ sơ /\nkhôi phục mật khẩu
+P1 --> User : Kết quả xử lý /\naccess token /\nrefresh token /\nthông tin hồ sơ
+
+User --> P2 : Tạo workspace /\ncập nhật workspace /\nmời thành viên /\nquản lý thành viên
+P2 --> User : Thông tin workspace /\nkết quả xử lý
+
+InvitedMember --> P2 : Chấp nhận lời mời
+P2 --> InvitedMember : Kết quả tham gia
+
+P1 --> D1
+P1 --> D2
+P2 --> D3
+P2 --> D4
+P2 --> D5
+
+P1 --> EmailService : Email khôi phục
+P2 --> EmailService : Email mời
+
+P1 --> P3 : Dữ liệu hành vi người dùng
+P2 --> P3 : Dữ liệu tương tác workspace
+P3 --> User : Cảnh báo / báo cáo (Phase 2)
+@enduml

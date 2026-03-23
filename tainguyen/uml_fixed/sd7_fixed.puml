@@ -1,0 +1,48 @@
+@startuml
+actor "User (admin/owner)" as User
+participant "Giao diện quản lý workspace" as UI
+participant "WorkspaceController" as WorkspaceController
+participant "WorkspaceService" as WorkspaceService
+participant "Database" as DB
+
+User -> UI: Chọn workspace cần quản lý
+UI -> WorkspaceController: GET /api/workspaces/{id}
+WorkspaceController -> WorkspaceService: GetWorkspace(id, userId)
+WorkspaceService -> DB: Kiểm tra role = owner hoặc admin
+alt Không có quyền
+  DB --> WorkspaceService: forbidden
+  WorkspaceService --> WorkspaceController: FORBIDDEN
+  WorkspaceController --> UI: 403 Forbidden
+  UI --> User: "Bạn không có quyền quản trị workspace này"
+else Có quyền
+  DB --> WorkspaceService: allowed
+  WorkspaceService -> DB: SELECT * FROM workspaces WHERE id=?
+  DB --> WorkspaceService: workspace
+  WorkspaceService --> WorkspaceController: workspace
+  WorkspaceController --> UI: 200 OK
+  UI --> User: Hiển thị form cấu hình
+
+  User -> UI: Nhập tên/cấu hình mới
+  UI -> WorkspaceController: PUT /api/workspaces/{id}
+  WorkspaceController -> WorkspaceService: UpdateWorkspace(id, data, userId)
+  WorkspaceService -> WorkspaceService: Validate dữ liệu cập nhật
+  alt Dữ liệu không hợp lệ
+    WorkspaceService --> WorkspaceController: VALIDATION_ERROR
+    WorkspaceController --> UI: 400 Bad Request
+    UI --> User: Hiển thị lỗi
+  else Dữ liệu hợp lệ
+    WorkspaceService -> DB: UPDATE workspaces SET name=?, config=? WHERE id=?
+    alt Cập nhật thất bại
+      DB --> WorkspaceService: error
+      WorkspaceService --> WorkspaceController: UPDATE_FAILED
+      WorkspaceController --> UI: 500 Internal Error
+      UI --> User: Thông báo lỗi
+    else Cập nhật thành công
+      DB --> WorkspaceService: updated workspace
+      WorkspaceService --> WorkspaceController: updated workspace
+      WorkspaceController --> UI: 200 OK
+      UI --> User: Thông báo cập nhật thành công
+    end
+  end
+end
+@enduml

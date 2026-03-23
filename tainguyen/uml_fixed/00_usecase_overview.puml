@@ -1,0 +1,50 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor User
+actor "Invited Member" as InvitedMember
+actor "Email Service" as EmailService
+
+rectangle "Hệ thống quản lý người dùng và workspace" {
+  rectangle "Phân hệ Users" {
+    usecase "U-101\nĐăng ký tài khoản" as U101
+    usecase "U-102\nĐăng nhập hệ thống" as U102
+    usecase "U-103\nĐăng xuất hệ thống" as U103
+    usecase "U-104\nQuản lý hồ sơ người dùng" as U104
+    usecase "U-105\nKhôi phục mật khẩu" as U105
+    usecase "Xác thực thông tin\nđăng nhập" as AuthLogin
+    usecase "Hiển thị captcha" as Captcha
+    usecase "Gửi email khôi phục" as SendResetMail
+  }
+
+  rectangle "Phân hệ Workspace" {
+    usecase "W-201\nTạo Workspace" as W201
+    usecase "W-202\nQuản lý Workspace" as W202
+    usecase "W-203\nMời và quản lý thành viên" as W203
+    usecase "Gửi email mời" as SendInviteMail
+    usecase "Gửi lại lời mời" as ResendInvite
+  }
+}
+
+User --> U101
+User --> U102
+User --> U103
+User --> U104
+User --> U105
+User --> W201
+User --> W202
+User --> W203
+InvitedMember --> W203
+
+U102 ..> AuthLogin : <<include>>
+Captcha ..> U102 : <<extend>>
+U105 ..> SendResetMail : <<include>>
+W203 ..> SendInviteMail : <<include>>
+ResendInvite ..> W203 : <<extend>>
+
+EmailService <-- SendResetMail
+EmailService <-- SendInviteMail
+EmailService <-- ResendInvite
+@enduml

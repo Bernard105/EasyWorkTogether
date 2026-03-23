@@ -1,0 +1,66 @@
+@startuml
+hide circle
+skinparam classAttributeIconSize 0
+
+class User {
+  +id: int
+  +email: string
+  +password_hash: string
+  +name: string
+  +avatar: text
+  +created_at: timestamp
+  +updated_at: timestamp
+  +register()
+  +updateProfile()
+}
+
+class Workspace {
+  +id: int
+  +name: string
+  +config: jsonb
+  +owner_id: int
+  +created_at: timestamp
+  +updated_at: timestamp
+  +create()
+  +updateConfig()
+}
+
+class WorkspaceMember {
+  +workspace_id: int
+  +user_id: int
+  +role: enum(owner, admin, member)
+  +joined_at: timestamp
+  +assignRole()
+}
+
+class UserSession {
+  +id: int
+  +user_id: int
+  +access_token: string
+  +refresh_token_hash: string
+  +expires_at: timestamp
+  +status: enum(active, revoked)
+  +revoke()
+  +rotateRefreshToken()
+}
+
+class WorkspaceInvitation {
+  +id: int
+  +workspace_id: int
+  +inviter_id: int
+  +invitee_email: string
+  +code: string
+  +expires_at: timestamp
+  +status: enum(pending, accepted, expired)
+  +accept()
+  +expire()
+  +resend()
+}
+
+User "1" -- "0..*" UserSession
+User "1" -- "0..*" WorkspaceMember
+Workspace "1" -- "0..*" WorkspaceMember
+Workspace "1" -- "0..*" WorkspaceInvitation
+User "1" -- "0..*" WorkspaceInvitation : inviter
+Workspace "1" --> "1" User : owner
+@enduml

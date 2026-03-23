@@ -23,7 +23,7 @@ public class InvitationsController : ControllerBase
     {
         var actorUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var result = await _invitationService.CreateInvitationAsync(actorUserId, workspaceId, request);
-        return StatusCode(201, result);
+        return StatusCode(StatusCodes.Status201Created, result);
     }
 
     [HttpPost("workspaces/{workspaceId:int}/invitations/resend")]
@@ -47,6 +47,6 @@ public class InvitationsController : ControllerBase
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         await _invitationService.RejectInvitationAsync(userId, request);
-        return Ok(new { message = "Đã từ chối lời mời." });
+        return Ok(new { message = "Từ chối lời mời thành công." });
     }
 }

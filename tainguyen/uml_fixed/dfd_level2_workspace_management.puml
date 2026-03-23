@@ -1,0 +1,38 @@
+@startuml
+left to right direction
+skinparam shadowing false
+
+actor User
+actor "Invited Member" as InvitedMember
+actor "Email Service" as EmailService
+
+rectangle "2.1\nTạo workspace" as P21
+rectangle "2.2\nCập nhật workspace" as P22
+rectangle "2.3\nMời thành viên" as P23
+rectangle "2.4\nXử lý lời mời" as P24
+
+database "D3\nworkspaces" as D3
+database "D4\nworkspace_members" as D4
+database "D5\nworkspace_invitations" as D5
+
+User --> P21 : tên workspace
+P21 --> User : workspace mới
+P21 --> D3 : tạo workspace
+P21 --> D4 : thêm owner
+
+User --> P22 : cập nhật tên/config /\nquản lý vai trò /\nxóa thành viên
+P22 --> User : workspace đã cập nhật
+P22 --> D3 : cập nhật workspace
+P22 --> D4 : cập nhật role /\nxóa thành viên
+
+User --> P23 : invitee_email
+P23 --> User : code, expires_at
+P23 --> D4 : kiểm tra quyền owner/admin
+P23 --> D5 : tạo lời mời
+P23 --> EmailService : gửi email mời
+
+InvitedMember --> P24 : code lời mời
+P24 --> InvitedMember : kết quả tham gia
+P24 --> D5 : kiểm tra lời mời /\ncập nhật accepted/expired
+P24 --> D4 : thêm thành viên role=member
+@enduml

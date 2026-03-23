@@ -1,0 +1,90 @@
+@startuml
+actor "User (người mời)" as Inviter
+actor "Invited Member" as InvitedMember
+participant "Giao diện mời thành viên" as UI
+participant "InvitationController" as InvitationController
+participant "InvitationService" as InvitationService
+participant "Database" as DB
+participant "Email Service" as EmailService
+
+Inviter -> UI: Nhập email cần mời
+UI -> InvitationController: POST /api/workspaces/{workspace_id}/invitations
+InvitationController -> InvitationService: CreateInvitation(workspaceId, inviterId, inviteeEmail)
+
+InvitationService -> DB: Kiểm tra quyền mời (owner/admin)
+alt Không có quyền
+  DB --> InvitationService: forbidden
+  InvitationService --> InvitationController: FORBIDDEN
+  InvitationController --> UI: 403 Forbidden
+  UI --> Inviter: Thông báo lỗi
+else Có quyền
+  DB --> InvitationService: allowed
+
+  InvitationService -> DB: Kiểm tra email chưa là thành viên workspace
+  alt Email đã là thành viên
+    DB --> InvitationService: already member
+    InvitationService --> InvitationController: CONFLICT
+    InvitationController --> UI: 409 Conflict
+    UI --> Inviter: "Thành viên đã tồn tại trong workspace"
+  else Chưa là thành viên
+    DB --> InvitationService: not member
+    InvitationService -> InvitationService: Tạo code mời
+    InvitationService -> InvitationService: Thiết lập expires_at = 7 ngày
+    InvitationService -> DB: INSERT INTO workspace_invitations(..., status='pending', created_at)
+    InvitationService -> EmailService: Gửi email mời
+
+    alt Gửi email thất bại
+      EmailService --> InvitationService: error
+      InvitationService --> InvitationController: SEND_MAIL_FAILED
+      InvitationController --> UI: 500 Internal Error
+      UI --> Inviter: Ghi nhận lỗi gửi mail
+    else Gửi email thành công
+      EmailService --> InvitationService: sent
+      InvitationService --> InvitationController: {code, expires_at}
+      InvitationController --> UI: 201 Created
+      UI --> Inviter: "Đã gửi lời mời"
+    end
+  end
+end
+
+== Chấp nhận lời mời ==
+InvitedMember -> UI: Nhấp link hoặc nhập mã mời
+UI -> InvitationController: POST /api/invitations/accept
+InvitationController -> InvitationService: AcceptInvitation(code)
+
+InvitationService -> DB: Kiểm tra code tồn tại, trạng thái='pending', chưa hết hạn
+alt Lời mời không hợp lệ hoặc hết hạn
+  DB --> InvitationService: invalid or expired
+  InvitationService -> DB: Cập nhật status='expired' nếu đã quá hạn
+  InvitationService --> InvitationController: INVALID_INVITATION
+  InvitationController --> UI: 400 Bad Request
+  UI --> InvitedMember: Thông báo lỗi
+else Lời mời hợp lệ
+  DB --> InvitationService: valid invitation
+  InvitationService -> DB: INSERT INTO workspace_members(workspace_id, user_id, role='member')
+  InvitationService -> DB: UPDATE workspace_invitations SET status='accepted'
+  InvitationService --> InvitationController: {workspace_id, role='member'}
+  InvitationController --> UI: 200 OK
+  UI --> InvitedMember: "Đã tham gia workspace"
+end
+
+== Extend flow: Gửi lại lời mời ==
+Inviter -> UI: Yêu cầu gửi lại lời mời khi lời mời đã hết hạn
+UI -> InvitationController: Resend expired invitation
+InvitationController -> InvitationService: ResendInvitation(oldInvitationId)
+
+InvitationService -> DB: Kiểm tra lời mời cũ đã hết hạn
+alt Lời mời chưa hết hạn
+  DB --> InvitationService: not expired
+  InvitationService --> InvitationController: CONFLICT
+  InvitationController --> UI: 409 Conflict
+else Lời mời đã hết hạn
+  DB --> InvitationService: expired
+  InvitationService -> InvitationService: Tạo code mới và hạn mới
+  InvitationService -> DB: INSERT INTO workspace_invitations(..., status='pending')
+  InvitationService -> EmailService: Gửi lại email mời
+  EmailService --> InvitationService: sent
+  InvitationService --> InvitationController: invitation resent
+  InvitationController --> UI: 200 OK
+end
+@enduml

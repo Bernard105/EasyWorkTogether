@@ -1,0 +1,8 @@
+@startuml
+left to right direction
+actor "User (admin/owner)" as User
+rectangle "Phân hệ Workspace" {
+  usecase "W-202\nQuản lý Workspace" as W202
+}
+User --> W202
+@enduml

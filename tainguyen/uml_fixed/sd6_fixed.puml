@@ -1,0 +1,40 @@
+@startuml
+actor User
+participant "Giao diện workspace" as UI
+participant "WorkspaceController" as WorkspaceController
+participant "WorkspaceService" as WorkspaceService
+participant "Database" as DB
+
+User -> UI: Nhấn "Tạo workspace"
+UI -> WorkspaceController: POST /api/workspaces
+WorkspaceController -> WorkspaceService: CreateWorkspace(userId, name)
+WorkspaceService -> WorkspaceService: Validate tên workspace
+alt Tên không hợp lệ
+  WorkspaceService --> WorkspaceController: VALIDATION_ERROR
+  WorkspaceController --> UI: 400 Bad Request
+  UI --> User: Hiển thị lỗi
+else Tên hợp lệ
+  WorkspaceService -> DB: INSERT INTO workspaces(name, owner_id, ...)
+  alt Lưu workspace thất bại
+    DB --> WorkspaceService: error
+    WorkspaceService --> WorkspaceController: CREATE_WORKSPACE_FAILED
+    WorkspaceController --> UI: 500 Internal Error
+    UI --> User: Thông báo lỗi
+  else Workspace tạo thành công
+    DB --> WorkspaceService: workspaceId
+    WorkspaceService -> DB: INSERT INTO workspace_members(workspace_id, user_id, role='owner')
+    alt Không tạo được owner member
+      DB --> WorkspaceService: error
+      WorkspaceService -> DB: ROLLBACK workspace
+      WorkspaceService --> WorkspaceController: ROLLBACK_FAILED_OWNER_LINK
+      WorkspaceController --> UI: 500 Internal Error
+      UI --> User: Thông báo lỗi
+    else Thành công
+      DB --> WorkspaceService: success
+      WorkspaceService --> WorkspaceController: workspace object
+      WorkspaceController --> UI: 201 Created
+      UI --> User: Chuyển đến trang quản lý workspace
+    end
+  end
+end
+@enduml

@@ -1,0 +1,35 @@
+@startuml
+actor User
+participant "Giao diện" as UI
+participant "AuthController" as AuthController
+participant "AuthService" as AuthService
+participant "Database" as DB
+
+User -> UI: Nhấn "Đăng xuất"
+UI -> AuthController: POST /api/logout (Bearer access_token)
+AuthController -> AuthService: Logout(access_token)
+
+AuthService -> DB: Kiểm tra token tồn tại và còn hiệu lực
+alt Phiên không hợp lệ hoặc hết hạn
+  DB --> AuthService: invalid session
+  AuthService --> AuthController: UNAUTHORIZED
+  AuthController --> UI: 401 Unauthorized
+  UI --> User: Yêu cầu đăng nhập lại
+else Phiên hợp lệ
+  DB --> AuthService: active session
+  AuthService -> DB: UPDATE user_sessions SET status='revoked'
+  AuthService -> AuthService: Vô hiệu hóa token hiện tại
+
+  alt Không thể thu hồi phiên
+    DB --> AuthService: error
+    AuthService --> AuthController: LOGOUT_FAILED
+    AuthController --> UI: 500 Internal Error
+    UI --> User: Lỗi xử lý đăng xuất
+  else Thành công
+    DB --> AuthService: success
+    AuthService --> AuthController: OK
+    AuthController --> UI: 204 No Content
+    UI --> User: Đăng xuất thành công
+  end
+end
+@enduml

@@ -1,4 +1,4 @@
-using BCrypt.Net;
+using System.Net.Mail;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using WorkspaceStressSystem.Api.Data;
@@ -46,6 +46,11 @@ public class AuthService : IAuthService
             throw new AppException(400, "VALIDATION_ERROR", "Email, mật khẩu và tên là bắt buộc.");
         }
 
+        if (!IsValidEmail(request.Email))
+        {
+            throw new AppException(400, "VALIDATION_ERROR", "Email không đúng định dạng.");
+        }
+
         if (request.Password.Length < 6)
         {
             throw new AppException(400, "VALIDATION_ERROR", "Mật khẩu phải có ít nhất 6 ký tự.");
@@ -80,8 +85,7 @@ public class AuthService : IAuthService
             Email = user.Email,
             Name = user.Name,
             Avatar = user.Avatar,
-            CreatedAt = user.CreatedAt,
-            UpdatedAt = user.UpdatedAt
+            CreatedAt = user.CreatedAt
         };
     }
 
@@ -358,11 +362,7 @@ public class AuthService : IAuthService
         var current = GetFailedLoginCount(email);
         var next = current + 1;
 
-        _memoryCache.Set(
-            cacheKey,
-            next,
-            TimeSpan.FromMinutes(FailedLoginCacheMinutes));
-
+        _memoryCache.Set(cacheKey, next, TimeSpan.FromMinutes(FailedLoginCacheMinutes));
         return next;
     }
 
@@ -381,5 +381,18 @@ public class AuthService : IAuthService
     private static string GetFailedLoginCacheKey(string email)
     {
         return $"failed-login:{email}";
+    }
+
+    private static bool IsValidEmail(string email)
+    {
+        try
+        {
+            _ = new MailAddress(email.Trim());
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

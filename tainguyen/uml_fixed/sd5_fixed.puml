@@ -1,0 +1,68 @@
+@startuml
+actor User
+participant "Giao diện khôi phục mật khẩu" as UI
+participant "PasswordController" as PasswordController
+participant "PasswordService" as PasswordService
+participant "Database" as DB
+participant "Email Service" as EmailService
+
+User -> UI: Nhấn "Quên mật khẩu"
+UI -> PasswordController: POST /api/forgot-password
+PasswordController -> PasswordService: RequestReset(email)
+PasswordService -> DB: Kiểm tra email tồn tại
+alt Email không tồn tại
+  DB --> PasswordService: not found
+  PasswordService --> PasswordController: EMAIL_NOT_FOUND
+  PasswordController --> UI: 404 / thông báo lỗi
+  UI --> User: "Email không tồn tại trong hệ thống"
+else Email tồn tại
+  DB --> PasswordService: user exists
+  PasswordService -> PasswordService: Tạo mã khôi phục + hạn 15 phút
+  PasswordService -> DB: Lưu mã khôi phục tạm thời
+  PasswordService -> EmailService: Gửi email chứa mã khôi phục
+  alt Gửi email thất bại
+    EmailService --> PasswordService: error
+    PasswordService --> PasswordController: SEND_MAIL_FAILED
+    PasswordController --> UI: 500 Internal Error
+    UI --> User: Thử lại sau
+  else Gửi email thành công
+    EmailService --> PasswordService: sent
+    PasswordService --> PasswordController: OK
+    PasswordController --> UI: 200 OK
+    UI --> User: Thông báo email đã được gửi
+  end
+end
+
+== Nhập mã và mật khẩu mới ==
+User -> UI: Nhập mã khôi phục + mật khẩu mới
+UI -> PasswordController: POST /api/reset-password
+PasswordController -> PasswordService: ResetPassword(code, newPassword)
+PasswordService -> DB: Kiểm tra mã khôi phục
+alt Mã không hợp lệ hoặc hết hạn
+  DB --> PasswordService: invalid/expired
+  PasswordService --> PasswordController: INVALID_RESET_CODE
+  PasswordController --> UI: 400 Bad Request
+  UI --> User: Yêu cầu nhập lại hoặc gửi lại mã
+else Mã hợp lệ
+  DB --> PasswordService: valid
+  PasswordService -> PasswordService: bcrypt.hash(newPassword)
+  PasswordService -> DB: UPDATE users SET password_hash=?
+  alt Cập nhật mật khẩu thất bại
+    DB --> PasswordService: error
+    PasswordService --> PasswordController: UPDATE_FAILED
+    PasswordController --> UI: 500 Internal Error
+    UI --> User: Lỗi hệ thống
+  else Cập nhật thành công
+    DB --> PasswordService: success
+    PasswordService -> DB: Vô hiệu hóa mã khôi phục
+    DB --> PasswordService: success
+    PasswordService --> PasswordController: OK
+    PasswordController --> UI: 200 OK
+    UI --> User: Chuyển về trang đăng nhập
+  end
+end
+
+== Alternate flow: Gửi lại mã ==
+User -> UI: Yêu cầu gửi lại mã
+UI -> PasswordController: POST /api/forgot-password (resend)
+@enduml

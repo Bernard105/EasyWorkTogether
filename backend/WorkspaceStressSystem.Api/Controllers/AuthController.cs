@@ -22,7 +22,15 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
         var result = await _authService.RegisterAsync(request);
-        return StatusCode(StatusCodes.Status201Created, result);
+
+        return StatusCode(StatusCodes.Status201Created, new
+        {
+            id = result.Id,
+            email = result.Email,
+            name = result.Name,
+            avatar = result.Avatar,
+            created_at = result.CreatedAt
+        });
     }
 
     [HttpPost("login")]
@@ -30,7 +38,14 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var result = await _authService.LoginAsync(request);
-        return Ok(result);
+
+        return Ok(new
+        {
+            access_token = result.AccessToken,
+            refresh_token = result.RefreshToken,
+            expires_in = result.ExpiresIn,
+            token_type = result.TokenType
+        });
     }
 
     [HttpPost("refresh")]
@@ -38,7 +53,13 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Refresh([FromBody] RefreshRequest request)
     {
         var result = await _authService.RefreshAsync(request);
-        return Ok(result);
+
+        return Ok(new
+        {
+            access_token = result.AccessToken,
+            refresh_token = result.RefreshToken,
+            expires_in = result.ExpiresIn
+        });
     }
 
     [HttpPost("logout")]

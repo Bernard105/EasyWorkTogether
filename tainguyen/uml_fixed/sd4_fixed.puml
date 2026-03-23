@@ -1,0 +1,49 @@
+@startuml
+actor User
+participant "Giao diện hồ sơ" as UI
+participant "UserController" as UserController
+participant "UserService" as UserService
+participant "Database" as DB
+
+User -> UI: Truy cập trang hồ sơ
+UI -> UserController: GET /api/users/me
+UserController -> UserService: GetProfile(userId)
+alt Chưa xác thực
+  UserService --> UserController: UNAUTHORIZED
+  UserController --> UI: 401 Unauthorized
+  UI --> User: Chuyển hướng đến đăng nhập
+else Đã xác thực
+  UserService -> DB: SELECT * FROM users WHERE id=?
+  DB --> UserService: profile
+  UserService --> UserController: profile
+  UserController --> UI: 200 OK
+  UI --> User: Hiển thị tên, email, avatar
+end
+
+alt User chỉ xem hồ sơ
+  UI --> User: Không phát sinh cập nhật
+else User cập nhật hồ sơ
+  User -> UI: Nhập tên mới và/hoặc avatar
+  UI -> UserController: PUT /api/users/me
+  UserController -> UserService: UpdateProfile(userId, data)
+  UserService -> UserService: Validate name/avatar
+  alt Dữ liệu không hợp lệ
+    UserService --> UserController: VALIDATION_ERROR
+    UserController --> UI: 400 Bad Request
+    UI --> User: Hiển thị lỗi
+  else Dữ liệu hợp lệ
+    UserService -> DB: UPDATE users SET name=?, avatar=? WHERE id=?
+    alt Cập nhật thất bại
+      DB --> UserService: error
+      UserService --> UserController: UPDATE_FAILED
+      UserController --> UI: 500 Internal Error
+      UI --> User: Cập nhật không thành công
+    else Cập nhật thành công
+      DB --> UserService: updated profile
+      UserService --> UserController: profile
+      UserController --> UI: 200 OK
+      UI --> User: Thông báo cập nhật thành công
+    end
+  end
+end
+@enduml

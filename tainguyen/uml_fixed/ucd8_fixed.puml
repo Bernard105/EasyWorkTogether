@@ -1,0 +1,17 @@
+@startuml
+left to right direction
+actor "User (người mời)" as Inviter
+actor "Invited Member" as InvitedMember
+actor "Email Service" as EmailService
+rectangle "Phân hệ Workspace" {
+  usecase "W-203\nMời và quản lý thành viên" as W203
+  usecase "Gửi email mời" as SendInviteMail
+  usecase "Gửi lại lời mời" as ResendInvite
+  W203 ..> SendInviteMail : <<include>>
+  ResendInvite ..> W203 : <<extend>>
+}
+Inviter --> W203
+InvitedMember --> W203
+EmailService <-- SendInviteMail
+EmailService <-- ResendInvite
+@enduml

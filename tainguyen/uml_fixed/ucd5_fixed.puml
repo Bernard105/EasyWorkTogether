@@ -1,0 +1,12 @@
+@startuml
+left to right direction
+actor User
+actor "Email Service" as EmailService
+rectangle "Phân hệ Users" {
+  usecase "U-105\nKhôi phục mật khẩu" as U105
+  usecase "Gửi email khôi phục" as SendResetMail
+  U105 ..> SendResetMail : <<include>>
+}
+User --> U105
+EmailService <-- SendResetMail
+@enduml

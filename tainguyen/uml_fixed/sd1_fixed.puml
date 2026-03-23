@@ -1,0 +1,42 @@
+@startuml
+actor User
+participant "Giao diện đăng ký" as UI
+participant "AuthController" as AuthController
+participant "UserService" as UserService
+participant "Database" as DB
+participant "Audit Log" as Log
+
+User -> UI: Nhập email, mật khẩu, tên hiển thị
+UI -> AuthController: POST /api/register
+AuthController -> UserService: Register(request)
+UserService -> UserService: Validate input
+alt Dữ liệu không hợp lệ
+  UserService --> AuthController: VALIDATION_ERROR
+  AuthController --> UI: 400 Bad Request
+  UI --> User: Hiển thị lỗi xác thực
+else Dữ liệu hợp lệ
+  UserService -> DB: SELECT user by email
+  alt Email đã tồn tại
+    DB --> UserService: found
+    UserService --> AuthController: EMAIL_EXISTS
+    AuthController --> UI: 409 Conflict
+    UI --> User: "Email đã được sử dụng"
+  else Email chưa tồn tại
+    DB --> UserService: not found
+    UserService -> UserService: bcrypt.hash(password)
+    UserService -> DB: INSERT INTO users(...)
+    alt Lưu thất bại
+      DB --> UserService: error
+      UserService --> AuthController: INTERNAL_ERROR
+      AuthController --> UI: 500 Internal Error
+      UI --> User: Đăng ký thất bại
+    else Lưu thành công
+      DB --> UserService: new user
+      UserService -> Log: Ghi nhật ký hệ thống
+      UserService --> AuthController: user object
+      AuthController --> UI: 201 Created
+      UI --> User: Thông báo đăng ký thành công
+    end
+  end
+end
+@enduml

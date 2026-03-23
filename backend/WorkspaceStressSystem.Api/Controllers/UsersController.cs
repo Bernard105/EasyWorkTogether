@@ -23,7 +23,15 @@ public class UsersController : ControllerBase
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var result = await _userService.GetMyProfileAsync(userId);
-        return Ok(result);
+
+        return Ok(new
+        {
+            result.Id,
+            result.Email,
+            result.Name,
+            result.Avatar,
+            result.CreatedAt
+        });
     }
 
     [HttpPut("me")]
@@ -31,6 +39,13 @@ public class UsersController : ControllerBase
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var result = await _userService.UpdateMyProfileAsync(userId, request);
-        return Ok(result);
+
+        return Ok(new
+        {
+            result.Id,
+            result.Email,
+            result.Name,
+            result.Avatar
+        });
     }
 }

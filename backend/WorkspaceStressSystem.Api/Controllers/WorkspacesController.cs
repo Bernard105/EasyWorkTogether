@@ -31,7 +31,15 @@ public class WorkspacesController : ControllerBase
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var result = await _workspaceService.CreateWorkspaceAsync(userId, request);
-        return StatusCode(201, result);
+
+        return StatusCode(StatusCodes.Status201Created, new
+        {
+            id = result.Id,
+            name = result.Name,
+            owner_id = result.OwnerId,
+            config = result.Config,
+            created_at = result.CreatedAt
+        });
     }
 
     [HttpPut("{workspaceId:int}")]
@@ -63,7 +71,7 @@ public class WorkspacesController : ControllerBase
     {
         var actorUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         await _workspaceService.UpdateMemberRoleAsync(actorUserId, workspaceId, userId, request);
-        return Ok(new { message = "Cập nhật vai trò thành công." });
+        return Ok();
     }
 
     [HttpDelete("{workspaceId:int}/members/{userId:int}")]

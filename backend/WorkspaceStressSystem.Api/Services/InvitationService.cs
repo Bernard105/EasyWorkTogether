@@ -1,3 +1,4 @@
+using System.Net.Mail;
 using Microsoft.EntityFrameworkCore;
 using WorkspaceStressSystem.Api.Data;
 using WorkspaceStressSystem.Api.DTOs.Invitations;
@@ -36,7 +37,7 @@ public class InvitationService : IInvitationService
 
         if (activeInvitation != null && activeInvitation.ExpiresAt > DateTime.UtcNow)
         {
-            throw new AppException(409, "INVITATION_EXISTS", "Lời mời vẫn còn hiệu lực. Hãy dùng chức năng gửi lại khi lời mời đã hết hạn.");
+            throw new AppException(409, "CONFLICT", "Lời mời vẫn còn hiệu lực.");
         }
 
         if (activeInvitation != null && activeInvitation.ExpiresAt <= DateTime.UtcNow)
@@ -92,7 +93,7 @@ public class InvitationService : IInvitationService
 
         if (invitation.ExpiresAt > DateTime.UtcNow && invitation.Status == InvitationStatus.Pending)
         {
-            throw new AppException(409, "INVITATION_STILL_ACTIVE", "Lời mời vẫn còn hiệu lực, chưa cần gửi lại.");
+            throw new AppException(409, "CONFLICT", "Lời mời vẫn còn hiệu lực.");
         }
 
         invitation.Code = TokenGenerator.GenerateCode(8);
@@ -135,7 +136,7 @@ public class InvitationService : IInvitationService
                 await _dbContext.SaveChangesAsync();
             }
 
-            throw new AppException(400, "INVALID_INVITATION", "Lời mời không hợp lệ hoặc đã hết hạn.");
+            throw new AppException(400, "VALIDATION_ERROR", "Lời mời không hợp lệ hoặc đã hết hạn.");
         }
 
         var user = await _dbContext.Users.FirstOrDefaultAsync(x => x.Id == userId);
@@ -205,22 +206,8 @@ public class InvitationService : IInvitationService
             throw new AppException(403, "FORBIDDEN", "Lời mời này không thuộc về tài khoản hiện tại.");
         }
 
-        if (invitation.ExpiresAt < DateTime.UtcNow)
-        {
-            invitation.Status = InvitationStatus.Expired;
-            await _dbContext.SaveChangesAsync();
-            throw new AppException(400, "INVALID_INVITATION", "Lời mời đã hết hạn.");
-        }
-
-        if (invitation.Status != InvitationStatus.Pending)
-        {
-            throw new AppException(409, "CONFLICT", "Lời mời đã được xử lý trước đó.");
-        }
-
         invitation.Status = InvitationStatus.Rejected;
         await _dbContext.SaveChangesAsync();
-
-        _logger.LogInformation("INVITATION_REJECTED user={UserId} workspace={WorkspaceId} invitee={InviteeEmail}", userId, invitation.WorkspaceId, invitation.InviteeEmail);
     }
 
     private async Task<Workspace> ValidateCreatePermissionAsync(int actorUserId, int workspaceId)
@@ -249,7 +236,14 @@ public class InvitationService : IInvitationService
             throw new AppException(400, "VALIDATION_ERROR", "Email người được mời không được để trống.");
         }
 
-        return inviteeEmail.Trim().ToLowerInvariant();
+        var normalized = inviteeEmail.Trim().ToLowerInvariant();
+
+        if (!IsValidEmail(normalized))
+        {
+            throw new AppException(400, "VALIDATION_ERROR", "Email người được mời không đúng định dạng.");
+        }
+
+        return normalized;
     }
 
     private async Task EnsureInviteeNotMemberAsync(int workspaceId, string inviteeEmail)
@@ -266,6 +260,19 @@ public class InvitationService : IInvitationService
         if (existingMember)
         {
             throw new AppException(409, "CONFLICT", "Thành viên đã tồn tại trong workspace.");
+        }
+    }
+
+    private static bool IsValidEmail(string email)
+    {
+        try
+        {
+            _ = new MailAddress(email);
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 }

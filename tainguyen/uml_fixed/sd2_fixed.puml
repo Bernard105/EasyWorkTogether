@@ -1,0 +1,86 @@
+@startuml
+actor User
+participant "Giao diện đăng nhập" as UI
+participant "AuthController" as AuthController
+participant "AuthService" as AuthService
+participant "TokenService" as TokenService
+participant "Database" as DB
+
+User -> UI: Nhập email và mật khẩu
+UI -> AuthController: POST /api/login
+AuthController -> AuthService: Login(email, password)
+
+AuthService -> AuthService: Kiểm tra input không rỗng
+alt Input không hợp lệ
+  AuthService --> AuthController: VALIDATION_ERROR
+  AuthController --> UI: 400 Bad Request
+  UI --> User: Hiển thị lỗi nhập liệu
+else Input hợp lệ
+  AuthService -> DB: SELECT * FROM users WHERE email=?
+  alt Email không tồn tại
+    DB --> AuthService: not found
+    AuthService --> AuthController: UNAUTHORIZED
+    AuthController --> UI: 401 Unauthorized
+    UI --> User: "Tài khoản không hợp lệ"
+  else Email tồn tại
+    DB --> AuthService: user record
+    AuthService -> AuthService: bcrypt.verify(password)
+
+    alt Mật khẩu sai
+      AuthService -> DB: Ghi nhận số lần đăng nhập sai
+      alt Sai quá 3 lần
+        AuthService --> AuthController: REQUIRE_CAPTCHA
+        AuthController --> UI: 403 Forbidden + captcha
+        UI --> User: Hiển thị captcha
+      else Chưa vượt ngưỡng
+        AuthService --> AuthController: WRONG_PASSWORD
+        AuthController --> UI: 401 Unauthorized
+        UI --> User: "Mật khẩu sai"
+      end
+
+    else Mật khẩu đúng
+      AuthService --> AuthController: authenticated user
+      AuthController -> TokenService: GenerateTokenPair(user)
+
+      TokenService -> TokenService: Tạo access token (15 phút)
+      TokenService -> TokenService: Tạo refresh token (7 ngày)
+      TokenService -> TokenService: Hash refresh token bằng SHA-256
+      TokenService -> DB: INSERT INTO user_sessions(access_token, refresh_token_hash, expires_at, status='active', created_at)
+
+      alt Không lưu được phiên
+        DB --> TokenService: error
+        TokenService --> AuthController: LOGIN_FAILED
+        AuthController --> UI: 500 Internal Error
+        UI --> User: Đăng nhập thất bại
+      else Lưu được phiên
+        DB --> TokenService: success
+        TokenService --> AuthController: access_token, refresh_token, expires_in=900
+        AuthController --> UI: 200 OK {access_token, refresh_token, expires_in, token_type='Bearer'}
+        UI --> User: Chuyển đến Dashboard
+      end
+    end
+  end
+end
+
+== Alternate flow: Refresh token ==
+UI -> AuthController: POST /api/refresh
+AuthController -> AuthService: Refresh(refresh_token)
+AuthService -> AuthService: Hash refresh token bằng SHA-256
+AuthService -> DB: Kiểm tra refresh token còn hiệu lực
+
+alt Refresh token hợp lệ
+  DB --> AuthService: valid session
+  AuthService -> TokenService: Rotate token pair
+  TokenService -> TokenService: Tạo access token mới (15 phút)
+  TokenService -> TokenService: Tạo refresh token mới (7 ngày)
+  TokenService -> DB: UPDATE user_sessions SET status='revoked' cho token cũ
+  TokenService -> DB: INSERT INTO user_sessions(...) cho token mới
+  DB --> TokenService: success
+  TokenService --> AuthController: new access_token, new_refresh_token, expires_in=900
+  AuthController --> UI: 200 OK
+else Refresh token không hợp lệ hoặc hết hạn
+  DB --> AuthService: invalid
+  AuthService --> AuthController: UNAUTHORIZED
+  AuthController --> UI: 401 Unauthorized
+end
+@enduml

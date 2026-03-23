@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using WorkspaceStressSystem.Api.Data;
 using WorkspaceStressSystem.Api.DTOs.Workspaces;
@@ -24,18 +25,17 @@ public class WorkspaceService : IWorkspaceService
         var data = await _dbContext.WorkspaceMembers
             .Include(x => x.Workspace)
             .Where(x => x.UserId == userId)
-            .Select(x => new WorkspaceResponse
-            {
-                Id = x.Workspace.Id,
-                Name = x.Workspace.Name,
-                Config = x.Workspace.Config,
-                OwnerId = x.Workspace.OwnerId,
-                Role = x.Role.ToString().ToLower(),
-                CreatedAt = x.Workspace.CreatedAt
-            })
             .ToListAsync();
 
-        return data;
+        return data.Select(x => new WorkspaceResponse
+        {
+            Id = x.Workspace.Id,
+            Name = x.Workspace.Name,
+            Config = ParseConfig(x.Workspace.Config),
+            OwnerId = x.Workspace.OwnerId,
+            Role = x.Role.ToString().ToLowerInvariant(),
+            CreatedAt = x.Workspace.CreatedAt
+        }).ToList();
     }
 
     public async Task<WorkspaceResponse> CreateWorkspaceAsync(int userId, CreateWorkspaceRequest request)
@@ -79,7 +79,7 @@ public class WorkspaceService : IWorkspaceService
             {
                 Id = workspace.Id,
                 Name = workspace.Name,
-                Config = workspace.Config,
+                Config = null,
                 OwnerId = workspace.OwnerId,
                 Role = "owner",
                 CreatedAt = workspace.CreatedAt
@@ -114,7 +114,7 @@ public class WorkspaceService : IWorkspaceService
         }
 
         workspace.Name = request.Name.Trim();
-        workspace.Config = request.Config;
+        workspace.Config = request.Config.HasValue ? request.Config.Value.GetRawText() : null;
         workspace.UpdatedAt = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync();
@@ -124,9 +124,9 @@ public class WorkspaceService : IWorkspaceService
         {
             Id = workspace.Id,
             Name = workspace.Name,
-            Config = workspace.Config,
+            Config = ParseConfig(workspace.Config),
             OwnerId = workspace.OwnerId,
-            Role = membership.Role.ToString().ToLower(),
+            Role = membership.Role.ToString().ToLowerInvariant(),
             CreatedAt = workspace.CreatedAt
         };
     }
@@ -167,7 +167,7 @@ public class WorkspaceService : IWorkspaceService
                 UserId = x.UserId,
                 Name = x.User.Name,
                 Email = x.User.Email,
-                Role = x.Role.ToString().ToLower(),
+                Role = x.Role.ToString().ToLowerInvariant(),
                 JoinedAt = x.JoinedAt
             })
             .ToListAsync();
@@ -196,8 +196,9 @@ public class WorkspaceService : IWorkspaceService
             throw new AppException(403, "FORBIDDEN", "Không thể thay đổi vai trò của owner.");
         }
 
-        var normalizedRole = request.Role.Trim().ToLower();
+        var normalizedRole = (request.Role ?? string.Empty).Trim().ToLowerInvariant();
         var oldRole = target.Role;
+
         target.Role = normalizedRole switch
         {
             "admin" => WorkspaceRole.Admin,
@@ -240,6 +241,21 @@ public class WorkspaceService : IWorkspaceService
 
         _dbContext.WorkspaceMembers.Remove(target);
         await _dbContext.SaveChangesAsync();
-        _logger.LogWarning("MEMBER_REMOVED workspaceId={WorkspaceId} actorUserId={ActorUserId} targetUserId={TargetUserId}", workspaceId, actorUserId, targetUserId);
+        _logger.LogWarning(
+            "MEMBER_REMOVED workspaceId={WorkspaceId} actorUserId={ActorUserId} targetUserId={TargetUserId}",
+            workspaceId,
+            actorUserId,
+            targetUserId);
+    }
+
+    private static JsonElement? ParseConfig(string? configJson)
+    {
+        if (string.IsNullOrWhiteSpace(configJson))
+        {
+            return null;
+        }
+
+        using var doc = JsonDocument.Parse(configJson);
+        return doc.RootElement.Clone();
     }
 }

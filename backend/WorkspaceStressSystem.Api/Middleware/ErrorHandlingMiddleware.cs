@@ -35,7 +35,7 @@ public class ErrorHandlingMiddleware
 
             await context.Response.WriteAsync(JsonSerializer.Serialize(payload));
         }
-        catch (Exception ex)
+        catch
         {
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
@@ -45,8 +45,7 @@ public class ErrorHandlingMiddleware
                 error = new
                 {
                     code = "INTERNAL_ERROR",
-                    message = ex.Message,
-                    detail = ex.InnerException?.Message,
+                    message = "Lỗi hệ thống.",
                     status = 500
                 }
             };

@@ -1,0 +1,8 @@
+@startuml
+left to right direction
+actor User
+rectangle "Phân hệ Users" {
+  usecase "U-103\nĐăng xuất hệ thống" as U103
+}
+User --> U103
+@enduml

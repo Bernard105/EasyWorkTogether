@@ -1,0 +1,64 @@
+@startuml
+hide circle
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+
+entity "users" as users {
+  * id : SERIAL <<PK>>
+  --
+  email : VARCHAR(255) <<UNIQUE, NOT NULL>>
+  password_hash : VARCHAR(255) <<NOT NULL>>
+  name : VARCHAR(255) <<NOT NULL>>
+  avatar : TEXT
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+entity "workspaces" as workspaces {
+  * id : SERIAL <<PK>>
+  --
+  name : VARCHAR(255) <<NOT NULL>>
+  config : JSONB
+  owner_id : INT <<FK>>
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+entity "workspace_members" as workspace_members {
+  * workspace_id : INT <<PK, FK>>
+  * user_id : INT <<PK, FK>>
+  --
+  role : VARCHAR(10) <<owner|admin|member>>
+  joined_at : TIMESTAMP
+}
+
+entity "user_sessions" as user_sessions {
+  * id : SERIAL <<PK>>
+  --
+  user_id : INT <<FK>>
+  access_token : VARCHAR(512) <<NOT NULL>>
+  refresh_token_hash : VARCHAR(512) <<NOT NULL>>
+  expires_at : TIMESTAMP <<NOT NULL>>
+  status : VARCHAR(10) <<active|revoked>>
+  created_at : TIMESTAMP
+}
+
+entity "workspace_invitations" as workspace_invitations {
+  * id : SERIAL <<PK>>
+  --
+  workspace_id : INT <<FK>>
+  inviter_id : INT <<FK>>
+  invitee_email : VARCHAR(255) <<NOT NULL>>
+  code : VARCHAR(64) <<UNIQUE, NOT NULL>>
+  expires_at : TIMESTAMP <<NOT NULL>>
+  status : VARCHAR(10) <<pending|accepted|expired>>
+  created_at : TIMESTAMP
+}
+
+users ||--o{ user_sessions
+users ||--o{ workspace_members
+workspaces ||--o{ workspace_members
+users ||--o{ workspace_invitations : inviter_id
+workspaces ||--o{ workspace_invitations
+users ||--o{ workspaces : owner_id
+@enduml

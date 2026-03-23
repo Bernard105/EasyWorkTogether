@@ -1,0 +1,56 @@
+@startuml
+skinparam componentStyle rectangle
+skinparam shadowing false
+left to right direction
+
+actor User
+actor "Invited Member" as InvitedMember
+
+rectangle "Presentation Layer" {
+  component "Web UI\n(ReactJS, JSX,\nReact Router, Axios)" as WebUI
+}
+
+rectangle "Business Logic Layer" {
+  component "AuthController" as AuthController
+  component "UserController" as UserController
+  component "WorkspaceController" as WorkspaceController
+  component "InvitationController" as InvitationController
+
+  component "AuthService" as AuthService
+  component "UserService" as UserService
+  component "WorkspaceService" as WorkspaceService
+  component "InvitationService" as InvitationService
+  component "TokenService" as TokenService
+}
+
+rectangle "Data Access Layer" {
+  component "Repository / ORM\n(Entity Framework Core)" as ORM
+}
+
+database "PostgreSQL" as DB
+cloud "Email Service\n(SMTP / SendGrid)" as EmailService
+
+User --> WebUI
+InvitedMember --> WebUI
+
+WebUI --> AuthController
+WebUI --> UserController
+WebUI --> WorkspaceController
+WebUI --> InvitationController
+
+AuthController --> AuthService
+AuthController --> TokenService
+UserController --> UserService
+WorkspaceController --> WorkspaceService
+InvitationController --> InvitationService
+
+AuthService --> ORM
+UserService --> ORM
+WorkspaceService --> ORM
+InvitationService --> ORM
+TokenService --> ORM
+
+ORM --> DB
+InvitationService --> EmailService
+AuthService --> EmailService : email khôi phục
+@enduml
